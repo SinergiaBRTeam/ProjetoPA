@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import Sidebar from "@/components/sidebar"
 import { apiGet } from "@/lib/api-client"
-import { ContractSimpleDto, AlertDto, ContractDetailsDto } from "@/lib/api-types"
+import { ContractSimpleDto, AlertDto } from "@/lib/api-types"
 import { formatDate } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 
@@ -14,7 +14,7 @@ export default function Home() {
   const { toast } = useToast()
   const [contracts, setContracts] = useState<ContractSimpleDto[]>([])
   const [alerts, setAlerts] = useState<AlertDto[]>([])
-  const [stats, setStats] = useState({ active: 0, pending: 0, overdue: 0 })
+  const [stats, setStats] = useState({ active: 0, draft: 0, criticalAlerts: 0 })
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -24,15 +24,18 @@ export default function Home() {
           apiGet<ContractSimpleDto[]>('/api/contracts'),
           apiGet<AlertDto[]>('/api/alerts')
         ])
-        
+
         setContracts(contractsData.slice(0, 5))
         setAlerts(alertsData.slice(0, 5))
-        
+
         const activeCount = contractsData.filter(c => c.status === 'Active').length
+        const draftCount = contractsData.filter(c => c.status === 'Draft').length
+        const criticalAlerts = alertsData.filter(alert => new Date(alert.targetDate) < new Date()).length
+
         setStats({
           active: activeCount,
-          pending: contractsData.filter(c => c.status === 'Pending').length,
-          overdue: contractsData.filter(c => c.status === 'Overdue').length
+          draft: draftCount,
+          criticalAlerts
         })
       } catch (error) {
         console.error("Erro ao buscar dados do dashboard:", error)
@@ -69,15 +72,15 @@ export default function Home() {
               </p>
             </Link>
             <Link href="/pendentes" className="bg-card border border-border rounded-lg p-6 hover:bg-muted/50 transition-colors">
-              <p className="text-sm font-medium text-muted-foreground">Pendentes de Ação</p>
+              <p className="text-sm font-medium text-muted-foreground">Em elaboração</p>
               <p className="text-3xl font-semibold text-foreground mt-2">
-                {loading ? '..' : stats.pending}
+                {loading ? '..' : stats.draft}
               </p>
             </Link>
             <Link href="/atrasados" className="bg-card border border-border rounded-lg p-6 hover:bg-muted/50 transition-colors">
-              <p className="text-sm font-medium text-muted-foreground">Atrasados</p>
+              <p className="text-sm font-medium text-muted-foreground">Alertas críticos</p>
               <p className="text-3xl font-semibold text-destructive mt-2">
-                {loading ? '..' : stats.overdue}
+                {loading ? '..' : stats.criticalAlerts}
               </p>
             </Link>
           </div>
@@ -129,17 +132,22 @@ export default function Home() {
               ) : alerts.length === 0 ? (
                 <div className="p-8 text-center text-muted-foreground">Nenhum alerta encontrado</div>
               ) : (
-                alerts.map((alert) => (
-                  <div key={alert.id} className="p-6 hover:bg-muted/50 transition-colors">
-                    <div className="flex items-start justify-between">
-                      <div className="space-y-1">
-                        <p className="font-medium text-foreground">{alert.title}</p>
-                        <p className="text-sm text-muted-foreground">Data: {formatDate(alert.date)}</p>
+                alerts.map((alert) => {
+                  const isCritical = new Date(alert.targetDate) < new Date()
+                  return (
+                    <div key={alert.id} className="p-6 hover:bg-muted/50 transition-colors">
+                      <div className="flex items-start justify-between">
+                        <div className="space-y-1">
+                          <p className="font-medium text-foreground">{alert.message}</p>
+                          <p className="text-sm text-muted-foreground">Vencimento: {formatDate(alert.targetDate)}</p>
+                        </div>
+                        <Badge variant={isCritical ? "destructive" : "secondary"}>
+                          {alert.deliverableId ? 'Entrega' : alert.contractId ? 'Contrato' : 'Geral'}
+                        </Badge>
                       </div>
-                      <Badge variant="destructive">{alert.type}</Badge>
                     </div>
-                  </div>
-                ))
+                  )
+                })
               )}
             </div>
           </div>

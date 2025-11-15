@@ -144,7 +144,9 @@ export default function CreateContractPage() {
                     <Label htmlFor="type">Tipo</Label>
                     <Select
                       value={formData.type}
-                      onValueChange={(value: any) => setFormData({ ...formData, type: value })}
+                      onValueChange={(value: CreateContractRequest['type']) =>
+                        setFormData({ ...formData, type: value })
+                      }
                     >
                       <SelectTrigger>
                         <SelectValue />
@@ -163,7 +165,9 @@ export default function CreateContractPage() {
                     <Label htmlFor="modality">Modalidade</Label>
                     <Select
                       value={formData.modality}
-                      onValueChange={(value: any) => setFormData({ ...formData, modality: value })}
+                      onValueChange={(value: CreateContractRequest['modality']) =>
+                        setFormData({ ...formData, modality: value })
+                      }
                     >
                       <SelectTrigger>
                         <SelectValue />
