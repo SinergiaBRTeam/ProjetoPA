@@ -1,0 +1,11 @@
+# Frontend dependencies
+ContractFlow-Frontend/node_modules/
+
+# .NET build artifacts
+ContractFlowApi/ContractFlowApi/bin/
+ContractFlowApi/ContractFlowApi/obj/
+
+# IDE metadata
+*.user
+*.swp
+.vscode/

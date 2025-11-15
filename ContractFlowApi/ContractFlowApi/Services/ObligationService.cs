@@ -58,19 +58,62 @@ namespace ContractsMvc.Services
         /// <summary>
         /// Retrieves an obligation by id. Returns null when not found.
         /// </summary>
-        public async Task<ObligationSummaryDto?> GetByIdAsync(Guid id, CancellationToken ct)
+        public async Task<ObligationDto?> GetByIdAsync(Guid id, CancellationToken ct)
         {
-            var ob = await _db.Obligations.AsNoTracking().FirstOrDefaultAsync(o => o.Id == id, ct);
+            var ob = await _db.Obligations.AsNoTracking()
+                .Include(o => o.Deliverables)
+                .Include(o => o.NonCompliances)
+                    .ThenInclude(nc => nc.Penalty)
+                .FirstOrDefaultAsync(o => o.Id == id, ct);
+
             if (ob == null) return null;
-            return new ObligationSummaryDto
+
+            var dto = new ObligationDto
             {
                 Id = ob.Id,
-                ContractId = ob.ContractId,
                 ClauseRef = ob.ClauseRef,
                 Description = ob.Description,
                 DueDate = ob.DueDate,
                 Status = ob.Status
             };
+
+            foreach (var deliverable in ob.Deliverables.OrderBy(d => d.ExpectedDate))
+            {
+                dto.Deliverables.Add(new DeliverableDto
+                {
+                    Id = deliverable.Id,
+                    ExpectedDate = deliverable.ExpectedDate,
+                    Quantity = deliverable.Quantity,
+                    Unit = deliverable.Unit,
+                    DeliveredAt = deliverable.DeliveredAt
+                });
+            }
+
+            foreach (var nc in ob.NonCompliances.OrderByDescending(n => n.RegisteredAt))
+            {
+                var ncDto = new NonComplianceDto
+                {
+                    Id = nc.Id,
+                    Reason = nc.Reason,
+                    Severity = nc.Severity,
+                    RegisteredAt = nc.RegisteredAt
+                };
+
+                if (nc.Penalty != null)
+                {
+                    ncDto.Penalty = new PenaltyDto
+                    {
+                        Id = nc.Penalty.Id,
+                        Type = nc.Penalty.Type,
+                        LegalBasis = nc.Penalty.LegalBasis,
+                        Amount = nc.Penalty.Amount
+                    };
+                }
+
+                dto.NonCompliances.Add(ncDto);
+            }
+
+            return dto;
         }
 
         /// <summary>

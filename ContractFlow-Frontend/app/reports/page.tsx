@@ -148,6 +148,7 @@ export default function ReportsPage() {
                   {dueDeliverables.map((item) => (
                     <div key={item.deliverableId} className="p-6">
                       <p className="font-semibold text-foreground">{item.obligationDescription}</p>
+                      <p className="text-sm text-muted-foreground">Contrato: {item.contractNumber}</p>
                       <div className="flex gap-4 text-sm text-muted-foreground mt-1">
                         <span>Data esperada: {new Date(item.expectedDate).toLocaleDateString()}</span>
                         <span>Status: {item.status}</span>

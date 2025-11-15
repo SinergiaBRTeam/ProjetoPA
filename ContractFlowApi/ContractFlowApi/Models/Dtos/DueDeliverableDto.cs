@@ -16,4 +16,7 @@ public class DueDeliverableDto
     public string Unit { get; set; } = null!;
     public Guid ObligationId { get; set; }
     public Guid ContractId { get; set; }
+    public string ContractNumber { get; set; } = null!;
+    public string ObligationDescription { get; set; } = null!;
+    public string Status { get; set; } = null!;
 }
