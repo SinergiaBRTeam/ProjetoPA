@@ -2,27 +2,44 @@
 
 import { useState, useEffect, useMemo } from "react"
 import Link from "next/link"
+import { useSearchParams } from 'next/navigation'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import Sidebar from "@/components/sidebar"
-import { API_BASE_URL } from "@/lib/config"
+import { apiGet } from "@/lib/api-client"
 import { ContractSimpleDto } from "@/lib/api-types"
+import { useToast } from "@/hooks/use-toast"
 
 export default function ContratosPage() {
+  const searchParams = useSearchParams()
+  const { toast } = useToast()
+  const statusParam = searchParams.get('status')
   const [searchTerm, setSearchTerm] = useState("")
   const [allContracts, setAllContracts] = useState<ContractSimpleDto[]>([])
-  const filteredContracts = useMemo(() => {
-    if (!searchTerm) {
-      return allContracts
-    }
+  const [statusFilter, setStatusFilter] = useState<string>('all')
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
+  const filteredContracts = useMemo(() => {
     const lowerSearch = searchTerm.toLowerCase()
-    return allContracts.filter(c =>
-      c.officialNumber.toLowerCase().includes(lowerSearch) ||
-      c.id.toLowerCase().includes(lowerSearch)
-    )
-  }, [searchTerm, allContracts])
+    return allContracts.filter(contract => {
+      const matchesSearch = lowerSearch
+        ? contract.officialNumber.toLowerCase().includes(lowerSearch) ||
+          contract.id.toLowerCase().includes(lowerSearch)
+        : true
+      const matchesStatus = statusFilter === 'all'
+        ? true
+        : contract.status.toLowerCase() === statusFilter.toLowerCase()
+      return matchesSearch && matchesStatus
+    })
+  }, [searchTerm, statusFilter, allContracts])
+
+  const statusOptions = useMemo(() => {
+    const unique = new Set(allContracts.map(contract => contract.status))
+    return Array.from(unique).sort((a, b) => a.localeCompare(b))
+  }, [allContracts])
 
   const getStatusVariant = (status: string): "default" | "secondary" | "destructive" => {
     switch (status.toLowerCase()) {
@@ -38,15 +55,33 @@ export default function ContratosPage() {
   useEffect(() => {
     const fetchContracts = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/api/contracts`)
-        const data: ContractSimpleDto[] = await response.json()
+        setLoading(true)
+        setError(null)
+        const data = await apiGet<ContractSimpleDto[]>('/api/contracts')
         setAllContracts(data)
       } catch (error) {
         console.error("Erro ao buscar contratos:", error)
+        setError("Falha ao carregar contratos")
+        toast({
+          title: "Erro",
+          description: "Não foi possível carregar a lista de contratos",
+          variant: "destructive"
+        })
+      }
+      finally {
+        setLoading(false)
       }
     }
     fetchContracts()
-  }, [])
+  }, [toast])
+
+  useEffect(() => {
+    if (statusParam) {
+      setStatusFilter(statusParam)
+    } else {
+      setStatusFilter('all')
+    }
+  }, [statusParam])
   return (
     <div className="flex h-screen bg-background">
       <Sidebar />
@@ -64,13 +99,31 @@ export default function ContratosPage() {
         </div>
 
         <div className="p-8 space-y-6">
-          <div className="bg-card border border-border rounded-lg p-4">
+          <div className="bg-card border border-border rounded-lg p-4 space-y-4">
             <Input
               type="text"
               placeholder="Buscar por número oficial ou ID..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm text-muted-foreground">
+                {statusFilter === 'all' ? 'Exibindo todos os contratos' : `Filtrando por status: ${statusFilter}`}
+              </p>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-full sm:w-60">
+                  <SelectValue placeholder="Filtrar por status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os status</SelectItem>
+                  {statusOptions.map((status) => (
+                    <SelectItem key={status} value={status}>
+                      {status}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <div className="bg-card border border-border rounded-lg">
@@ -80,7 +133,11 @@ export default function ContratosPage() {
               </h2>
             </div>
             <div className="divide-y divide-border">
-              {filteredContracts.length === 0 ? (
+              {loading ? (
+                <div className="p-8 text-center text-muted-foreground">Carregando contratos...</div>
+              ) : error ? (
+                <div className="p-8 text-center text-destructive">{error}</div>
+              ) : filteredContracts.length === 0 ? (
                 <div className="p-8 text-center text-muted-foreground">
                   Nenhum contrato encontrado
                 </div>

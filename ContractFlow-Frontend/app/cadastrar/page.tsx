@@ -1,93 +1,120 @@
 "use client"
 
 import Sidebar from "@/components/sidebar"
-import { Upload, FileText, CheckCircle } from "lucide-react"
-import { useState, useEffect, ChangeEvent } from "react"
+import { Upload, FileText, CheckCircle, Download } from "lucide-react"
+import { useState, useEffect, ChangeEvent, useRef, useCallback } from "react"
+import { Button } from "@/components/ui/button"
+import { apiGet, apiPostFormData } from "@/lib/api-client"
 import { API_BASE_URL } from "@/lib/config"
 import { ContractSimpleDto, AttachmentDto } from "@/lib/api-types"
+import { useToast } from "@/hooks/use-toast"
 
 export default function CadastrarDocsPage() {
-  const [uploadedFiles, setUploadedFiles] = useState<AttachmentDto[]>([]);
-  const [contracts, setContracts] = useState<ContractSimpleDto[]>([]);
-  const [selectedContractId, setSelectedContractId] = useState<string>("");
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
+  const [uploadedFiles, setUploadedFiles] = useState<AttachmentDto[]>([])
+  const [contracts, setContracts] = useState<ContractSimpleDto[]>([])
+  const [selectedContractId, setSelectedContractId] = useState<string>("")
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [isUploading, setIsUploading] = useState(false)
+  const [loadingContracts, setLoadingContracts] = useState(true)
+  const [loadingAttachments, setLoadingAttachments] = useState(false)
+  const { toast } = useToast()
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
 
-
-  useEffect(() => {
-    const fetchContracts = async () => {
-      try {
-        const response = await fetch(`${API_BASE_URL}/api/contracts`);
-        const data: ContractSimpleDto[] = await response.json();
-        setContracts(data);
-        if (data.length > 0) {
-        
-          setSelectedContractId(data[0].id); 
-        }
-      } catch (error) {
-        console.error("Erro ao buscar contratos:", error);
+  const loadContracts = useCallback(async () => {
+    try {
+      setLoadingContracts(true)
+      const data = await apiGet<ContractSimpleDto[]>('/api/contracts')
+      setContracts(data)
+      if (data.length > 0) {
+        setSelectedContractId((current) => current || data[0].id)
       }
-    };
-    fetchContracts();
-  }, []);
-
-
-  useEffect(() => {
-    if (!selectedContractId) {
-      setUploadedFiles([]);
-      return;
+    } catch (error) {
+      console.error("Erro ao buscar contratos:", error)
+      toast({
+        title: "Erro",
+        description: "Não foi possível carregar os contratos disponíveis.",
+        variant: "destructive"
+      })
+    } finally {
+      setLoadingContracts(false)
     }
-    const fetchAttachments = async () => {
-      try {
-        const response = await fetch(`${API_BASE_URL}/api/contracts/${selectedContractId}/attachments`);
-        const data: AttachmentDto[] = await response.json();
-        setUploadedFiles(data);
-      } catch (error) {
-        console.error("Erro ao buscar anexos:", error);
-        setUploadedFiles([]);
-      }
-    };
-    fetchAttachments();
-  }, [selectedContractId]);
+  }, [toast])
+
+  const loadAttachments = useCallback(async (contractId: string) => {
+    if (!contractId) {
+      setUploadedFiles([])
+      return
+    }
+
+    try {
+      setLoadingAttachments(true)
+      const data = await apiGet<AttachmentDto[]>(`/api/contracts/${contractId}/attachments`)
+      setUploadedFiles(data)
+    } catch (error) {
+      console.error("Erro ao buscar anexos:", error)
+      setUploadedFiles([])
+      toast({
+        title: "Erro",
+        description: "Não foi possível carregar os anexos do contrato selecionado.",
+        variant: "destructive"
+      })
+    } finally {
+      setLoadingAttachments(false)
+    }
+  }, [toast])
+
+  useEffect(() => {
+    loadContracts()
+  }, [loadContracts])
+
+  useEffect(() => {
+    if (selectedContractId) {
+      loadAttachments(selectedContractId)
+    }
+  }, [selectedContractId, loadAttachments])
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      setSelectedFile(e.target.files[0]);
+      setSelectedFile(e.target.files[0])
     }
-  };
-  
+  }
+
   const handleUploadSubmit = async () => {
     if (!selectedFile || !selectedContractId) {
-      alert("Por favor, selecione um contrato e um arquivo.");
-      return;
+      toast({
+        title: "Arquivo obrigatório",
+        description: "Selecione um contrato e escolha um arquivo para enviar.",
+        variant: "destructive"
+      })
+      return
     }
-    
-    setIsUploading(true);
-    const formData = new FormData();
-    formData.append("file", selectedFile); 
+
+    setIsUploading(true)
+    const formData = new FormData()
+    formData.append('File', selectedFile)
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/contracts/${selectedContractId}/attachments`, {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!response.ok) {
-        throw new Error("Falha no upload do arquivo.");
+      await apiPostFormData(`/api/contracts/${selectedContractId}/attachments`, formData)
+      setSelectedFile(null)
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
       }
-
-      const newAttachment: AttachmentDto = await response.json();
-      setUploadedFiles(prevFiles => [newAttachment, ...prevFiles]);
-      setSelectedFile(null);
-      alert("Upload realizado com sucesso!");
-
+      toast({
+        title: "Upload realizado",
+        description: "Documento enviado com sucesso."
+      })
+      loadAttachments(selectedContractId)
     } catch (error) {
-      console.error("Erro no upload:", error);
-      alert("Erro no upload. Tente novamente.");
+      console.error("Erro no upload:", error)
+      toast({
+        title: "Erro no upload",
+        description: "Não foi possível enviar o documento. Tente novamente.",
+        variant: "destructive"
+      })
     } finally {
-      setIsUploading(false);
+      setIsUploading(false)
     }
-  };
+  }
 
   return (
     <div className="flex h-screen bg-background">
@@ -111,7 +138,7 @@ export default function CadastrarDocsPage() {
                   <p className="text-muted-foreground mb-4">ou clique para selecionar</p>
                   <label className="bg-primary text-white px-6 py-2 rounded-lg font-medium hover:bg-primary/90 cursor-pointer">
                     Selecionar Arquivo
-                    <input type="file" className="hidden" onChange={handleFileChange} />
+                    <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileChange} />
                   </label>
                   <p className="text-xs text-muted-foreground mt-4">Tamanho máx: 20MB (definido no backend)</p>
                 </div>
@@ -123,14 +150,16 @@ export default function CadastrarDocsPage() {
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-foreground mb-2">Contrato Relacionado</label>
-                    <select 
+                    <select
                       className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
                       value={selectedContractId}
                       onChange={(e) => setSelectedContractId(e.target.value)}
-                      disabled={contracts.length === 0}
+                      disabled={loadingContracts || contracts.length === 0}
                     >
-                      {contracts.length === 0 ? (
+                      {loadingContracts ? (
                         <option>Carregando contratos...</option>
+                      ) : contracts.length === 0 ? (
+                        <option>Nenhum contrato disponível</option>
                       ) : (
                         contracts.map(c => (
                           <option key={c.id} value={c.id}>
@@ -140,7 +169,7 @@ export default function CadastrarDocsPage() {
                       )}
                     </select>
                   </div>
-                  
+
                   {/* Estes campos não existem no DTO de Attachment, então são ignorados no submit */}
                   <div>
                     <label className="block text-sm font-medium text-foreground mb-2">Tipo de Documento (Apenas UI)</label>
@@ -158,13 +187,13 @@ export default function CadastrarDocsPage() {
                     />
                   </div>
                   
-                  <button 
-                    className="w-full bg-primary text-white py-2 rounded-lg font-medium hover:bg-primary/90 disabled:bg-gray-400"
+                  <Button
+                    className="w-full"
                     onClick={handleUploadSubmit}
                     disabled={isUploading || !selectedFile || !selectedContractId}
                   >
                     {isUploading ? "Enviando..." : "Enviar Documento"}
-                  </button>
+                  </Button>
                 </div>
               </div>
             </div>
@@ -173,19 +202,35 @@ export default function CadastrarDocsPage() {
             <div className="bg-white rounded-2xl shadow-sm p-6">
               <h3 className="text-lg font-semibold text-foreground mb-4">Uploads Recentes (Contrato Selecionado)</h3>
               <div className="space-y-3">
-                {uploadedFiles.length === 0 && <p className="text-sm text-muted-foreground">Nenhum anexo encontrado.</p>}
-                {uploadedFiles.map((file) => (
-                  <div key={file.id} className="border border-gray-200 rounded-lg p-3 hover:bg-gray-50">
-                    <div className="flex items-start gap-3">
-                      <FileText size={20} className="text-primary mt-1 flex-shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-foreground truncate">{file.fileName}</p>
-                        <p className="text-xs text-muted-foreground">{file.mimeType}</p>
+                {loadingAttachments ? (
+                  <p className="text-sm text-muted-foreground">Carregando anexos...</p>
+                ) : uploadedFiles.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Nenhum anexo encontrado.</p>
+                ) : (
+                  uploadedFiles.map((file) => (
+                    <div key={file.id} className="border border-gray-200 rounded-lg p-3 hover:bg-gray-50">
+                      <div className="flex items-start gap-3">
+                        <FileText size={20} className="text-primary mt-1 flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-foreground truncate">{file.fileName}</p>
+                          <p className="text-xs text-muted-foreground">{file.mimeType}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <CheckCircle size={16} className="text-green-500 flex-shrink-0" />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => window.open(`${API_BASE_URL}/api/attachments/${file.id}/download`, '_blank')}
+                            title="Baixar"
+                          >
+                            <Download className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
-                      <CheckCircle size={16} className="text-green-500 flex-shrink-0" />
                     </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             </div>
           </div>

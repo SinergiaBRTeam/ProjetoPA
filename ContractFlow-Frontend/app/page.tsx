@@ -65,19 +65,19 @@ export default function Home() {
 
         <div className="p-8 space-y-8">
           <div className="grid grid-cols-3 gap-6">
-            <Link href="/contratos" className="bg-card border border-border rounded-lg p-6 hover:bg-muted/50 transition-colors">
+            <Link href="/contratos?status=Active" className="bg-card border border-border rounded-lg p-6 hover:bg-muted/50 transition-colors">
               <p className="text-sm font-medium text-muted-foreground">Contratos Ativos</p>
               <p className="text-3xl font-semibold text-foreground mt-2">
                 {loading ? '..' : stats.active}
               </p>
             </Link>
-            <Link href="/pendentes" className="bg-card border border-border rounded-lg p-6 hover:bg-muted/50 transition-colors">
+            <Link href="/contratos?status=Draft" className="bg-card border border-border rounded-lg p-6 hover:bg-muted/50 transition-colors">
               <p className="text-sm font-medium text-muted-foreground">Em elaboração</p>
               <p className="text-3xl font-semibold text-foreground mt-2">
                 {loading ? '..' : stats.draft}
               </p>
             </Link>
-            <Link href="/atrasados" className="bg-card border border-border rounded-lg p-6 hover:bg-muted/50 transition-colors">
+            <Link href="/alerts?critical=true" className="bg-card border border-border rounded-lg p-6 hover:bg-muted/50 transition-colors">
               <p className="text-sm font-medium text-muted-foreground">Alertas críticos</p>
               <p className="text-3xl font-semibold text-destructive mt-2">
                 {loading ? '..' : stats.criticalAlerts}
