@@ -5,30 +5,39 @@ import Link from "next/link"
 import Sidebar from "@/components/sidebar"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { API_BASE_URL } from "@/lib/config"
+import { Button } from "@/components/ui/button"
+import { apiGet } from "@/lib/api-client"
 import { ContractSimpleDto } from "@/lib/api-types"
+import { useToast } from "@/hooks/use-toast"
 
 export default function VerTodos() {
   const [contracts, setContracts] = useState<ContractSimpleDto[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const { toast } = useToast()
 
   useEffect(() => {
     const fetchContracts = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/api/contracts`);
-        if (!response.ok) throw new Error("Falha ao buscar contratos");
-        
-        const data: ContractSimpleDto[] = await response.json();
+        setLoading(true)
+        setError(null)
+        const data = await apiGet<ContractSimpleDto[]>('/api/contracts');
         setContracts(data);
       } catch (error) {
         console.error("Erro ao buscar contratos:", error);
+        setError('Não foi possível carregar os contratos')
+        toast({
+          title: "Erro",
+          description: "Falha ao carregar os contratos. Tente novamente em instantes.",
+          variant: "destructive"
+        })
       } finally {
         setLoading(false)
       }
     };
 
     fetchContracts();
-  }, []);
+  }, [toast]);
 
   return (
     <div className="flex h-screen bg-background">
@@ -41,14 +50,16 @@ export default function VerTodos() {
           </div>
 
           {loading ? (
-            <div className="text-center py-8">Carregando...</div>
+            <div className="text-center py-8 text-muted-foreground">Carregando contratos...</div>
+          ) : error ? (
+            <div className="text-center py-8 text-destructive">{error}</div>
           ) : (
             <div className="bg-white rounded-2xl shadow-sm p-6">
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-lg font-semibold text-foreground">Contratos ({contracts.length})</h2>
-                <Link href="/" className="text-primary hover:text-primary/80 text-sm font-medium">
-                  Voltar ao Dashboard
-                </Link>
+                <Button asChild variant="outline" size="sm">
+                  <Link href="/">Voltar ao Dashboard</Link>
+                </Button>
               </div>
               <div className="space-y-4">
                 {contracts.map((contract) => (

@@ -1,10 +1,12 @@
 "use client"
 
 import Sidebar from "@/components/sidebar"
-import { AlertTriangle, TrendingUp, Shield, AlertCircle } from "lucide-react"
-import { useState, useEffect } from "react"
-import { API_BASE_URL } from "@/lib/config"
+import { AlertTriangle, TrendingUp, Shield, AlertCircle, RefreshCw } from "lucide-react"
+import { useState, useEffect, useCallback } from "react"
+import { Button } from "@/components/ui/button"
+import { apiGet } from "@/lib/api-client"
 import { PenaltyReportDto } from "@/lib/api-types"
+import { useToast } from "@/hooks/use-toast"
 
 interface RiskItem {
   id: string;
@@ -20,6 +22,9 @@ interface RiskItem {
 export default function PainelRiscosPage() {
   const [risks, setRisks] = useState<RiskItem[]>([])
   const [stats, setStats] = useState({ high: 0, medium: 0, low: 0 });
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const { toast } = useToast()
 
   const getRiskColor = (severity: string) => {
     switch (severity.toLowerCase()) {
@@ -55,42 +60,50 @@ export default function PainelRiscosPage() {
     }
   }
 
+  const loadRisks = useCallback(async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      const data = await apiGet<PenaltyReportDto[]>('/api/reports/penalties')
+
+      let high = 0, medium = 0, low = 0
+
+      const mappedRisks: RiskItem[] = data.map(r => {
+        const level = getRiskLevel(r.severity)
+        if (level === 'Alto') high++
+        else if (level === 'Médio') medium++
+        else if (level === 'Baixo') low++
+
+        return {
+          id: r.penaltyId,
+          title: r.type,
+          contract: `Contrato: ${r.contractId.substring(0, 8)}...`,
+          level,
+          levelColor: getRiskColor(r.severity),
+          probability: 50,
+          impact: 50,
+          description: r.reason,
+        }
+      })
+
+      setRisks(mappedRisks)
+      setStats({ high, medium, low })
+    } catch (error) {
+      console.error("Erro ao buscar relatório de penalidades:", error)
+      setError('Não foi possível carregar o painel de riscos')
+      toast({
+        title: "Erro",
+        description: "Falha ao carregar os dados de penalidades.",
+        variant: "destructive"
+      })
+    } finally {
+      setLoading(false)
+    }
+  }, [toast])
+
   useEffect(() => {
-    const fetchRisks = async () => {
-      try {
-        const response = await fetch(`${API_BASE_URL}/api/reports/penalties`);
-        const data: PenaltyReportDto[] = await response.json();
-        
-        let high = 0, medium = 0, low = 0;
-        
-        const mappedRisks: RiskItem[] = data.map(r => {
-          const level = getRiskLevel(r.severity);
-          if (level === 'Alto') high++;
-          else if (level === 'Médio') medium++;
-          else if (level === 'Baixo') low++;
-
-          return {
-            id: r.penaltyId,
-            title: r.type,
-            contract: `CT: ${r.contractId.substring(0, 8)}...`,
-            level: level,
-            levelColor: getRiskColor(r.severity),
-            probability: 50,
-            impact: 50,
-            description: r.reason,
-          };
-        });
-        
-        setRisks(mappedRisks);
-        setStats({ high, medium, low });
-
-      } catch (error) {
-        console.error("Erro ao buscar relatório de penalidades:", error);
-      }
-    };
-    
-    fetchRisks();
-  }, []);
+    loadRisks()
+  }, [loadRisks])
 
   const riskMatrix = [
     { level: "Alto", count: stats.high, color: "bg-red-500" },
@@ -106,7 +119,12 @@ export default function PainelRiscosPage() {
         <div className="p-8">
           <div className="mb-8">
             <h1 className="text-4xl font-bold text-primary mb-2">Painel de Riscos</h1>
-            <p className="text-muted-foreground">Análise e monitoramento de riscos contratuais</p>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-muted-foreground">Análise e monitoramento de riscos contratuais</p>
+              <Button variant="outline" size="sm" onClick={loadRisks} disabled={loading}>
+                <RefreshCw className="mr-2 h-4 w-4" /> Atualizar
+              </Button>
+            </div>
           </div>
 
           {/* Risk Summary Cards */}
@@ -154,27 +172,32 @@ export default function PainelRiscosPage() {
             <div className="lg:col-span-2">
               <div className="bg-white rounded-2xl shadow-sm p-6">
                 <h2 className="text-lg font-semibold text-foreground mb-6">Detalhamento de Riscos (Baseado em Penalidades)</h2>
-                <div className="space-y-4">
-                  {risks.map((risk) => (
-                    <div
-                      key={risk.id}
-                      className="border border-gray-200 rounded-xl p-4 hover:shadow-md transition-shadow"
-                    >
-                      <div className="flex items-start justify-between mb-3">
-                        <div>
-                          <h3 className="font-semibold text-foreground">{risk.title}</h3>
-                          <p className="text-sm text-muted-foreground">{risk.contract}</p>
+                {loading ? (
+                  <p className="text-muted-foreground">Carregando penalidades...</p>
+                ) : error ? (
+                  <p className="text-destructive">{error}</p>
+                ) : (
+                  <div className="space-y-4">
+                    {risks.map((risk) => (
+                      <div
+                        key={risk.id}
+                        className="border border-gray-200 rounded-xl p-4 hover:shadow-md transition-shadow"
+                      >
+                        <div className="flex items-start justify-between mb-3">
+                          <div>
+                            <h3 className="font-semibold text-foreground">{risk.title}</h3>
+                            <p className="text-sm text-muted-foreground">{risk.contract}</p>
+                          </div>
+                          <span className={`px-3 py-1 rounded-full text-xs font-semibold ${risk.levelColor}`}>
+                            {risk.level}
+                          </span>
                         </div>
-                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${risk.levelColor}`}>
-                          {risk.level}
-                        </span>
+                        <p className="text-sm text-foreground mb-4">{risk.description}</p>
                       </div>
-                      <p className="text-sm text-foreground mb-4">{risk.description}</p>
-                      {/* Barras de Probabilidade e Impacto são estáticas pois não vêm do backend */}
-                    </div>
-                  ))}
-                  {risks.length === 0 && <p>Nenhuma penalidade (risco) encontrada.</p>}
-                </div>
+                    ))}
+                    {risks.length === 0 && <p className="text-muted-foreground">Nenhuma penalidade (risco) encontrada.</p>}
+                  </div>
+                )}
               </div>
             </div>
 

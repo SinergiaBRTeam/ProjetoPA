@@ -46,11 +46,29 @@ export default function DeliverableDetailPage() {
     fetchData()
   }, [params.id])
 
+  useEffect(() => {
+    if (deliverable) {
+      const referenceDate = deliverable.deliveredAt || deliverable.expectedDate
+      if (referenceDate) {
+        setDeliveredDate(referenceDate.split('T')[0])
+      }
+    }
+  }, [deliverable])
+
   const handleMarkDelivered = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!deliveredDate) {
+      toast({
+        title: "Data obrigatória",
+        description: "Informe a data da entrega para continuar.",
+        variant: "destructive"
+      })
+      return
+    }
     try {
+      const isoDate = new Date(`${deliveredDate}T00:00:00`).toISOString()
       await apiPut(`/api/deliverables/${params.id}/delivered`, {
-        deliveredAt: deliveredDate
+        deliveredAt: isoDate
       })
       toast({
         title: "Sucesso",
