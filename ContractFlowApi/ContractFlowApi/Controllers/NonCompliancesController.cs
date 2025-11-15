@@ -29,7 +29,7 @@ public class NonCompliancesController : ControllerBase
     {
         var nc = await _service.RegisterNonComplianceAsync(obligationId, request.Reason, request.Severity, ct);
         if (nc is null) return NotFound();
-        return Ok(new { id = nc.Id });
+        return CreatedAtAction(nameof(GetNonComplianceById), new { nonComplianceId = nc.Id }, new { id = nc.Id });
     }
 
     /// <summary>
@@ -52,6 +52,37 @@ public class NonCompliancesController : ControllerBase
         }
     }
 
+    [HttpGet("obligations/{obligationId:guid}/noncompliances")]
+    public async Task<IActionResult> ListForObligation(Guid obligationId, CancellationToken ct)
+    {
+        var data = await _service.GetNonCompliancesForObligationAsync(obligationId, ct);
+        return Ok(data);
+    }
+
+    [HttpGet("noncompliances/{nonComplianceId:guid}")]
+    public async Task<IActionResult> GetNonComplianceById(Guid nonComplianceId, CancellationToken ct)
+    {
+        var dto = await _service.GetNonComplianceByIdAsync(nonComplianceId, ct);
+        if (dto is null) return NotFound();
+        return Ok(dto);
+    }
+
+    [HttpPut("noncompliances/{nonComplianceId:guid}")]
+    public async Task<IActionResult> UpdateNonCompliance(Guid nonComplianceId, [FromBody] UpdateNonComplianceRequest request, CancellationToken ct)
+    {
+        var updated = await _service.UpdateNonComplianceAsync(nonComplianceId, request.Reason, request.Severity, ct);
+        if (!updated) return NotFound();
+        return NoContent();
+    }
+
+    [HttpDelete("noncompliances/{nonComplianceId:guid}")]
+    public async Task<IActionResult> DeleteNonCompliance(Guid nonComplianceId, CancellationToken ct)
+    {
+        var deleted = await _service.DeleteNonComplianceAsync(nonComplianceId, ct);
+        if (!deleted) return NotFound();
+        return NoContent();
+    }
+
     /// <summary>
     /// Request model for registering a non‑compliance.
     /// </summary>
@@ -69,5 +100,11 @@ public class NonCompliancesController : ControllerBase
         public string Type { get; init; } = null!;
         public string? LegalBasis { get; init; }
         public decimal? Amount { get; init; }
+    }
+
+    public sealed class UpdateNonComplianceRequest
+    {
+        public string Reason { get; init; } = null!;
+        public string Severity { get; init; } = null!;
     }
 }

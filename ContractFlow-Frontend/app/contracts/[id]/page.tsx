@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import Sidebar from "@/components/sidebar"
 import { apiGet, apiDelete } from "@/lib/api-client"
 import { ContractDetailsDto, AttachmentDto } from "@/lib/api-types"
+import { API_BASE_URL } from "@/lib/config"
 import { useToast } from "@/hooks/use-toast"
 
 export default function ContractDetailPage() {

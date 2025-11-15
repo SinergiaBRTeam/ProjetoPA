@@ -208,6 +208,7 @@ export interface EvidenceDto {
 export interface DueDeliverableReportDto {
   deliverableId: string;
   contractId: string;
+  contractNumber: string;
   obligationDescription: string;
   expectedDate: string;
   status: string;

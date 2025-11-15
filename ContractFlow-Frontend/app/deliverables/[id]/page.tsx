@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label"
 import Sidebar from "@/components/sidebar"
 import { apiGet, apiPut, apiDelete, apiPostFormData } from "@/lib/api-client"
 import { DeliverableDto, InspectionDto, EvidenceDto } from "@/lib/api-types"
+import { API_BASE_URL } from "@/lib/config"
 import { useToast } from "@/hooks/use-toast"
 
 export default function DeliverableDetailPage() {
@@ -260,7 +261,7 @@ export default function DeliverableDetailPage() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => window.open(`/api/evidences/${evidence.id}/download`, '_blank')}
+                          onClick={() => window.open(`${API_BASE_URL}/api/evidences/${evidence.id}/download`, '_blank')}
                         >
                           Download
                         </Button>

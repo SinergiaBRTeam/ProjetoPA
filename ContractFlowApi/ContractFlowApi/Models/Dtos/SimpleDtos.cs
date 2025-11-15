@@ -141,6 +141,7 @@ namespace ContractsMvc.Models.Dtos
         public string? Notes { get; set; }
         public Guid? DeliverableId { get; set; }
         public Guid? InspectionId { get; set; }
+        public DateTime UploadedAt { get; set; }
     }
 
     /// <summary>
@@ -156,15 +157,27 @@ namespace ContractsMvc.Models.Dtos
     }
 
     /// <summary>
-    /// DTO for reporting deliveries grouped by supplier or org unit.
+    /// DTO for reporting deliveries grouped by supplier.
     /// </summary>
-    public sealed class DeliveryReportDto
+    public sealed class DeliveryBySupplierReportDto
     {
-        public Guid Id { get; set; }
-        public string Name { get; set; } = null!;
-        public int TotalDeliverables { get; set; }
-        public int DeliveredCount { get; set; }
-        public int PendingCount { get; set; }
+        public Guid SupplierId { get; set; }
+        public string SupplierName { get; set; } = null!;
+        public int TotalDeliveries { get; set; }
+        public int OnTimeDeliveries { get; set; }
+        public int LateDeliveries { get; set; }
+    }
+
+    /// <summary>
+    /// DTO for reporting deliveries grouped by organisational unit.
+    /// </summary>
+    public sealed class DeliveryByOrgUnitReportDto
+    {
+        public Guid OrgUnitId { get; set; }
+        public string OrgUnitName { get; set; } = null!;
+        public int TotalDeliveries { get; set; }
+        public int OnTimeDeliveries { get; set; }
+        public int LateDeliveries { get; set; }
     }
 
     /// <summary>

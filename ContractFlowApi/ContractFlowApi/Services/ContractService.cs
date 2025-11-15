@@ -1,3 +1,5 @@
+using System;
+using System.Linq;
 using ContractsMvc.Data;
 using ContractsMvc.Models;
 using ContractsMvc.Models.Dtos;
@@ -190,6 +192,30 @@ public class ContractService
         return nc;
     }
 
+    private static NonComplianceDto MapNonComplianceDto(NonCompliance nc)
+    {
+        var dto = new NonComplianceDto
+        {
+            Id = nc.Id,
+            Reason = nc.Reason,
+            Severity = nc.Severity,
+            RegisteredAt = nc.RegisteredAt
+        };
+
+        if (nc.Penalty != null)
+        {
+            dto.Penalty = new PenaltyDto
+            {
+                Id = nc.Penalty.Id,
+                Type = nc.Penalty.Type,
+                LegalBasis = nc.Penalty.LegalBasis,
+                Amount = nc.Penalty.Amount
+            };
+        }
+
+        return dto;
+    }
+
     public async Task<Penalty?> ApplyPenaltyAsync(Guid nonComplianceId, string type, string? legalBasis, decimal? amount, CancellationToken ct)
     {
         var nc = await _db.NonCompliances
@@ -214,6 +240,51 @@ public class ContractService
         return penalty;
     }
 
+    public async Task<List<NonComplianceDto>> GetNonCompliancesForObligationAsync(Guid obligationId, CancellationToken ct)
+    {
+        var list = await _db.NonCompliances
+            .AsNoTracking()
+            .Where(nc => nc.ObligationId == obligationId)
+            .Include(nc => nc.Penalty)
+            .OrderByDescending(nc => nc.RegisteredAt)
+            .ToListAsync(ct);
+
+        return list.Select(MapNonComplianceDto).ToList();
+    }
+
+    public async Task<NonComplianceDto?> GetNonComplianceByIdAsync(Guid id, CancellationToken ct)
+    {
+        var nc = await _db.NonCompliances
+            .AsNoTracking()
+            .Include(x => x.Penalty)
+            .FirstOrDefaultAsync(x => x.Id == id, ct);
+
+        return nc == null ? null : MapNonComplianceDto(nc);
+    }
+
+    public async Task<bool> UpdateNonComplianceAsync(Guid id, string reason, string severity, CancellationToken ct)
+    {
+        var nc = await _db.NonCompliances.FirstOrDefaultAsync(x => x.Id == id, ct);
+        if (nc == null) return false;
+
+        nc.Reason = reason;
+        nc.Severity = severity;
+        nc.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync(ct);
+        return true;
+    }
+
+    public async Task<bool> DeleteNonComplianceAsync(Guid id, CancellationToken ct)
+    {
+        var nc = await _db.NonCompliances.FirstOrDefaultAsync(x => x.Id == id, ct);
+        if (nc == null) return false;
+
+        nc.IsDeleted = true;
+        nc.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync(ct);
+        return true;
+    }
+
     public async Task<List<DueDeliverableDto>> GetDueDeliverablesAsync(CancellationToken ct)
     {
         var now = DateTime.UtcNow;
@@ -227,23 +298,42 @@ public class ContractService
                 Quantity = d.Quantity,
                 Unit = d.Unit,
                 ObligationId = d.ObligationId,
-                ContractId = d.Obligation.ContractId
+                ContractId = d.Obligation.ContractId,
+                ContractNumber = d.Obligation.Contract.OfficialNumber,
+                ObligationDescription = d.Obligation.Description,
+                Status = d.ExpectedDate < now ? "Atrasado" : "Pendente"
             })
             .OrderBy(r => r.ExpectedDate)
             .ToListAsync(ct);
     }
 
-    public async Task<List<ContractStatusSummaryDto>> GetContractStatusSummaryAsync(CancellationToken ct)
+    public async Task<List<ContractStatusReportDto>> GetContractStatusSummaryAsync(CancellationToken ct)
     {
-        return await _db.Contracts
+        var contracts = await _db.Contracts
             .AsNoTracking()
-            .GroupBy(c => c.Status)
-            .Select(g => new ContractStatusSummaryDto
-            {
-                Status = g.Key.ToString(),
-                Count = g.Count()
-            })
+            .Include(c => c.Obligations)
+                .ThenInclude(o => o.Deliverables)
             .ToListAsync(ct);
+
+        return contracts
+            .Select(c =>
+            {
+                var obligations = c.Obligations.Where(o => !o.IsDeleted).ToList();
+                var completed = obligations.Count(o =>
+                    string.Equals(o.Status, "Completed", StringComparison.OrdinalIgnoreCase) ||
+                    (o.Deliverables.Any() && o.Deliverables.All(d => d.DeliveredAt != null)));
+
+                return new ContractStatusReportDto
+                {
+                    ContractId = c.Id,
+                    OfficialNumber = c.OfficialNumber,
+                    Status = c.Status.ToString(),
+                    TotalObligations = obligations.Count,
+                    CompletedObligations = completed
+                };
+            })
+            .OrderBy(c => c.OfficialNumber)
+            .ToList();
     }
 
     public async Task<List<DueDeliverableDto>> GetDueDeliverablesAsync(DateTime? from, DateTime? to, CancellationToken ct)
@@ -255,6 +345,8 @@ public class ContractService
         if (to.HasValue)
             query = query.Where(d => d.ExpectedDate <= to.Value);
 
+        var now = DateTime.UtcNow;
+
         return await query
             .Select(d => new DueDeliverableDto
             {
@@ -263,13 +355,16 @@ public class ContractService
                 Quantity = d.Quantity,
                 Unit = d.Unit,
                 ObligationId = d.ObligationId,
-                ContractId = d.Obligation.ContractId
+                ContractId = d.Obligation.ContractId,
+                ContractNumber = d.Obligation.Contract.OfficialNumber,
+                ObligationDescription = d.Obligation.Description,
+                Status = d.ExpectedDate < now ? "Atrasado" : "Pendente"
             })
             .OrderBy(d => d.ExpectedDate)
             .ToListAsync(ct);
     }
 
-    public async Task<List<DeliveryReportDto>> GetDeliveriesBySupplierAsync(DateTime? from, DateTime? to, CancellationToken ct)
+    public async Task<List<DeliveryBySupplierReportDto>> GetDeliveriesBySupplierAsync(DateTime? from, DateTime? to, CancellationToken ct)
     {
         var deliverables = _db.Deliverables
             .AsNoTracking()
@@ -283,21 +378,25 @@ public class ContractService
         if (to.HasValue)
             deliverables = deliverables.Where(d => d.ExpectedDate <= to.Value);
 
+        var now = DateTime.UtcNow;
+
         return await deliverables
             .GroupBy(d => d.Obligation.Contract.Supplier)
-            .Select(g => new DeliveryReportDto
+            .Select(g => new DeliveryBySupplierReportDto
             {
-                Id = g.Key.Id,
-                Name = g.Key.CorporateName,
-                TotalDeliverables = g.Count(),
-                DeliveredCount = g.Count(x => x.DeliveredAt != null),
-                PendingCount = g.Count(x => x.DeliveredAt == null)
+                SupplierId = g.Key.Id,
+                SupplierName = g.Key.CorporateName,
+                TotalDeliveries = g.Count(),
+                OnTimeDeliveries = g.Count(x => x.DeliveredAt != null && x.DeliveredAt <= x.ExpectedDate),
+                LateDeliveries = g.Count(x =>
+                    (x.DeliveredAt != null && x.DeliveredAt > x.ExpectedDate) ||
+                    (x.DeliveredAt == null && x.ExpectedDate < now))
             })
-            .OrderBy(r => r.Name)
+            .OrderBy(r => r.SupplierName)
             .ToListAsync(ct);
     }
 
-    public async Task<List<DeliveryReportDto>> GetDeliveriesByOrgUnitAsync(DateTime? from, DateTime? to, CancellationToken ct)
+    public async Task<List<DeliveryByOrgUnitReportDto>> GetDeliveriesByOrgUnitAsync(DateTime? from, DateTime? to, CancellationToken ct)
     {
         var deliverables = _db.Deliverables
             .AsNoTracking()
@@ -311,17 +410,21 @@ public class ContractService
         if (to.HasValue)
             deliverables = deliverables.Where(d => d.ExpectedDate <= to.Value);
 
+        var now = DateTime.UtcNow;
+
         return await deliverables
             .GroupBy(d => d.Obligation.Contract.OrgUnit)
-            .Select(g => new DeliveryReportDto
+            .Select(g => new DeliveryByOrgUnitReportDto
             {
-                Id = g.Key.Id,
-                Name = g.Key.Name,
-                TotalDeliverables = g.Count(),
-                DeliveredCount = g.Count(x => x.DeliveredAt != null),
-                PendingCount = g.Count(x => x.DeliveredAt == null)
+                OrgUnitId = g.Key.Id,
+                OrgUnitName = g.Key.Name,
+                TotalDeliveries = g.Count(),
+                OnTimeDeliveries = g.Count(x => x.DeliveredAt != null && x.DeliveredAt <= x.ExpectedDate),
+                LateDeliveries = g.Count(x =>
+                    (x.DeliveredAt != null && x.DeliveredAt > x.ExpectedDate) ||
+                    (x.DeliveredAt == null && x.ExpectedDate < now))
             })
-            .OrderBy(r => r.Name)
+            .OrderBy(r => r.OrgUnitName)
             .ToListAsync(ct);
     }
 

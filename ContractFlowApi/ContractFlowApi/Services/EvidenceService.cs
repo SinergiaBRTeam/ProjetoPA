@@ -91,7 +91,8 @@ namespace ContractsMvc.Services
                 StoragePath = evidence.StoragePath,
                 Notes = evidence.Notes,
                 DeliverableId = evidence.DeliverableId,
-                InspectionId = evidence.InspectionId
+                InspectionId = evidence.InspectionId,
+                UploadedAt = evidence.CreatedAt
             };
         }
 
@@ -107,7 +108,8 @@ namespace ContractsMvc.Services
                 StoragePath = e.StoragePath,
                 Notes = e.Notes,
                 DeliverableId = e.DeliverableId,
-                InspectionId = e.InspectionId
+                InspectionId = e.InspectionId,
+                UploadedAt = e.CreatedAt
             };
         }
 
@@ -124,7 +126,8 @@ namespace ContractsMvc.Services
                     StoragePath = ev.StoragePath,
                     Notes = ev.Notes,
                     DeliverableId = ev.DeliverableId,
-                    InspectionId = ev.InspectionId
+                    InspectionId = ev.InspectionId,
+                    UploadedAt = ev.CreatedAt
                 })
                 .ToListAsync(ct);
         }
@@ -142,7 +145,8 @@ namespace ContractsMvc.Services
                     StoragePath = ev.StoragePath,
                     Notes = ev.Notes,
                     DeliverableId = ev.DeliverableId,
-                    InspectionId = ev.InspectionId
+                    InspectionId = ev.InspectionId,
+                    UploadedAt = ev.CreatedAt
                 })
                 .ToListAsync(ct);
         }
