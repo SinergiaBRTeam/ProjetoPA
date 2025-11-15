@@ -14,8 +14,6 @@ namespace ContractsMvc.Data
     {
         public static async Task InitializeAsync(ContractsDbContext db)
         {
-            await db.Database.EnsureCreatedAsync();
-
             if (!await db.Suppliers.AnyAsync())
             {
                 db.Suppliers.Add(new Supplier

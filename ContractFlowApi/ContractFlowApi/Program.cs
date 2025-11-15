@@ -1,6 +1,7 @@
 using ContractsMvc.Data;
 using ContractsMvc.Services;
 using Microsoft.EntityFrameworkCore;
+using System.IO;
 using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -11,11 +12,28 @@ builder.Services.AddControllers()
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// Database configuration
-builder.Services.AddDbContext<ContractsDbContext>(opt =>
-    opt.UseSqlServer(builder.Configuration.GetConnectionString("ContractsDb")));
+var connectionString = builder.Configuration.GetConnectionString("ContractsDb") ?? "Data Source=contracts.db";
 
-// Core services
+builder.Services.AddDbContext<ContractsDbContext>(opt =>
+{
+    if (!connectionString.Contains("Data Source="))
+    {
+        opt.UseSqlite(connectionString);
+        return;
+    }
+
+    var dataSource = connectionString.Split('=', 2)[1].Trim();
+    if (!Path.IsPathFullyQualified(dataSource))
+    {
+        var absolutePath = Path.Combine(builder.Environment.ContentRootPath, dataSource);
+        opt.UseSqlite($"Data Source={absolutePath}");
+    }
+    else
+    {
+        opt.UseSqlite(connectionString);
+    }
+});
+
 builder.Services.AddScoped<ContractService>();
 builder.Services.AddScoped<SupplierService>();
 builder.Services.AddScoped<OrgUnitService>();
@@ -24,7 +42,6 @@ builder.Services.AddScoped<InspectionService>();
 builder.Services.AddScoped<EvidenceService>();
 builder.Services.AddScoped<AttachmentService>();
 
-// Hosted service registration (background alerts)
 builder.Services.AddSingleton<AlertsHostedService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<AlertsHostedService>());
 
@@ -47,11 +64,10 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-// Database initialization and seeding
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<ContractsDbContext>();
-    db.Database.Migrate();
+    await db.Database.EnsureCreatedAsync();
     await SeedData.InitializeAsync(db);
 }
 

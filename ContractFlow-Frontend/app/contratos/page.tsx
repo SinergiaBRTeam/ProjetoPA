@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -12,7 +12,17 @@ import { ContractSimpleDto } from "@/lib/api-types"
 export default function ContratosPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [allContracts, setAllContracts] = useState<ContractSimpleDto[]>([])
-  const [filteredContracts, setFilteredContracts] = useState<ContractSimpleDto[]>([])
+  const filteredContracts = useMemo(() => {
+    if (!searchTerm) {
+      return allContracts
+    }
+
+    const lowerSearch = searchTerm.toLowerCase()
+    return allContracts.filter(c =>
+      c.officialNumber.toLowerCase().includes(lowerSearch) ||
+      c.id.toLowerCase().includes(lowerSearch)
+    )
+  }, [searchTerm, allContracts])
 
   const getStatusVariant = (status: string): "default" | "secondary" | "destructive" => {
     switch (status.toLowerCase()) {
@@ -31,28 +41,12 @@ export default function ContratosPage() {
         const response = await fetch(`${API_BASE_URL}/api/contracts`)
         const data: ContractSimpleDto[] = await response.json()
         setAllContracts(data)
-        setFilteredContracts(data)
       } catch (error) {
         console.error("Erro ao buscar contratos:", error)
       }
     }
     fetchContracts()
   }, [])
-
-  useEffect(() => {
-    if (!searchTerm) {
-      setFilteredContracts(allContracts)
-      return
-    }
-    const lowerSearch = searchTerm.toLowerCase()
-    setFilteredContracts(
-      allContracts.filter(c => 
-        c.officialNumber.toLowerCase().includes(lowerSearch) ||
-        c.id.toLowerCase().includes(lowerSearch)
-      )
-    )
-  }, [searchTerm, allContracts])
-
   return (
     <div className="flex h-screen bg-background">
       <Sidebar />
