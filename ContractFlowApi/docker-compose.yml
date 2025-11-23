@@ -1,0 +1,20 @@
+version: "3.9"
+
+services:
+  contractflow-api:
+    build:
+      context: ./ContractFlowApi/ContractFlowApi
+      dockerfile: Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__ContractsDb: Data Source=/data/contracts.db
+      FileStorage: /data/uploads
+    ports:
+      - "8080:8080"
+    volumes:
+      - contractflow-data:/data
+    restart: unless-stopped
+
+volumes:
+  contractflow-data:
